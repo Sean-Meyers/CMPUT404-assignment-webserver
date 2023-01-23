@@ -43,7 +43,8 @@ class MyWebServer(socketserver.BaseRequestHandler):
         req_line = req[0]
         # TODO: if the split below fails, raise a BadRequestLineError or
         # something. May need to look into request's HTTPError or something;
-        # it seems the tests might expect it.
+        # it seems the tests might expect it. But be careful, do you really want
+        # your server to crash because of a bad request or something?
         #try:
         self.method, self.uri, self.version = req_line.split(None, 2)
         #except ValueError as e:
@@ -76,7 +77,8 @@ class MyWebServer(socketserver.BaseRequestHandler):
         elif self.method == b'CONNECT':
             pass
         else:
-            # TODO: raise InvalidHTTPMethodError
+            # TODO: raise InvalidHTTPMethodError But be careful, do you really want
+            # your server to crash because of a bad request or something?
             pass
 
 
@@ -95,7 +97,21 @@ class MyWebServer(socketserver.BaseRequestHandler):
         # 404
         # 301 (for deep)
         
+        # XXX: Question: what exactly is desired when '/' is requested, the
+        # index.html page or a list of files in the directory? Similarly, what
+        # if a directory is requested by the client?
+        # XXX: Answer: https://eclass.srv.ualberta.ca/mod/forum/discuss.php?d=2161561
+
+        # XXX: Questions: What does "Must use 301 to correct paths such as 
+        # http://127.0.0.1:8080/deep to http://127.0.0.1:8080/deep/ (path 
+        # ending)" mean?
+        # Do i give 405 for OPTIONS, CONNECT, PATCH, etc as well?
+        # What does this mean: "The webserver can serve CSS properly so that the
+        # front page has an orange h1 header." Do I need to do anything aside
+        # from sending the raw text of the css file in my http response?
+
         os.chdir('./www')
+        root = os.getcwd()      # So we can change back once we're done... maybe
         # Split the uri into a list such that deeper directories have higher
         # indices in the list, then remove all b'' characters from the result.
         requested_thing = self.uri.split(b'/')
@@ -103,15 +119,36 @@ class MyWebServer(socketserver.BaseRequestHandler):
             requested_thing.remove(null)
         requested_thing.reverse()   # So we can use pop conveniently
 
-        if requested_thing.pop().decode() in os.listdir():
-            # 200 OK, send them the thing, or chdir to the requested dir and repeat
-            # Use the len(requested_thing) to determine if it's a file or directory the user wants
+        while len(requested_thing) > 1:
+            next_dir = requested_thing.pop().decode()
+            if next_dir in os.listdir():
+                # chdir to the requested dir and repeat
+                # Use the len(requested_thing) to determine if it's a file or directory the user wants
+                # TODO try:
+                os.chdir('./' + next_dir)
+                # except filenotfound or whatever as e:
+                    # 404
+                pass
+            else:
+                # 404 Not Found Mate
+                pass
+        
+        if len(requested_thing) == 1:
+            thing = requested_thing.pop().decode()
+            if thing in os.listdir():
+                # 200 OK, send them the thing, might need to qcheck if it's a
+                # directory tho.
+                pass
+            else:
+                # 404
+                pass
+        elif 'index.html' in os.listdir():
+            # 200 OK, send them the thing
+            # for now, assuming '/' means they want index.html
             pass
-        else:
-            # 404 Not Found Mate
-            pass
-        # get root from '/', idk what gets returned
-        pass
+        
+        os.chdir(root)      # reset cwd.
+
 
     def post(self):
         # 405 Method Not Allowed
