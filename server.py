@@ -1,6 +1,6 @@
 #  coding: utf-8 
 import socketserver
-import os
+from pathlib import Path
 
 # Copyright 2013 Abram Hindle, Eddie Antonio Santos, Sean Meyers
 # 
@@ -34,13 +34,20 @@ class MyWebServer(socketserver.BaseRequestHandler):
         self.data = self.request.recv(1024).strip()
         print ("Got a request of: %s\n" % self.data)
         self.parse_request()
-        self.invoke_method()
-        self.request.sendall(bytearray("OK",'utf-8'))
+        resp = 'HTTP/1.1 ' + self.invoke_method() + '\r\n'
+        self.request.sendall(bytearray(resp,'utf-8'))
 
 
     def parse_request(self):
         req = self.data.splitlines()
         req_line = req[0]
+        # Figure out where the headers end and the body begins, save the body,
+        # then remove it from the list.
+        if b'' in req:
+            headers_end = req.index(b'')
+            if headers_end+1 < len(req):
+                req_body = req[headers_end+1 : ]    # TODO make it self.req_body
+            del req[headers_end:]
         # TODO: if the split below fails, raise a BadRequestLineError or
         # something. May need to look into request's HTTPError or something;
         # it seems the tests might expect it. But be careful, do you really want
@@ -49,37 +56,50 @@ class MyWebServer(socketserver.BaseRequestHandler):
         self.method, self.uri, self.version = req_line.split(None, 2)
         #except ValueError as e:
         #    raise Exception()
-        message = req[1:]
-        for i in range(len(message)):
-            message[i] = message[i].split()
-        self.headers = dict(message)
+        req_headers = req[1:]
+        for i in range(len(req_headers)):
+            req_headers[i] = req_headers[i].split()
+        try:
+            self.headers = dict(req_headers)
+        except ValueError as e:
+            print(e)
+            print(req_headers)
+            print('********************************************************')
+            print(req)
+            print('********************************************************')
 
 
     def invoke_method(self):
         # TODO: Add checks for self.version, make sure it matches HTTP/1.1 or
         # whatever else we want to allow.
         if self.method == b'GET':
-            pass
-        elif self.method == b'POST':
-            pass
-        elif self.method == b'HEAD':
-            pass
-        elif self.method == b'PUT':
-            pass
-        elif self.method == b'DELETE':
-            pass
-        elif self.method == b'PATCH':
-            pass
-        elif self.method == b'OPTIONS':
-            pass
-        elif self.method == b'TRACE':
-            pass
-        elif self.method == b'CONNECT':
-            pass
+            return self.get()
+        # elif self.method == b'POST':
+        #     pass
+        # elif self.method == b'HEAD':
+        #     pass
+        # elif self.method == b'PUT':
+        #     pass
+        # elif self.method == b'DELETE':
+        #     pass
+        # elif self.method == b'PATCH':
+        #     pass
+        # elif self.method == b'OPTIONS':
+        #     pass
+        # elif self.method == b'TRACE':
+        #     pass
+        # elif self.method == b'CONNECT':
+        #     pass
         else:
-            # TODO: raise InvalidHTTPMethodError But be careful, do you really want
-            # your server to crash because of a bad request or something?
-            pass
+            return '405 Method Not Allowed\r\n'
+
+
+    # def status(code, reason):
+    #     pass
+    # def resp_header(accept_range='',
+    #                 age='',
+    #                 etag='',
+    #                 location='',pxy_auth='',retry='',server='',vary='',www_auth=''):
 
 
     # TODO: Implement methods. Can start with sending back 501 Not Implementeds
@@ -93,10 +113,28 @@ class MyWebServer(socketserver.BaseRequestHandler):
         returned as the entity in the response and not the source text of the
         process, unless that text happens to be the output of the process.
         """
-        # 200 OK
-        # 404
-        # 301 (for deep)
-        
+
+        uri = Path(self.uri.decode())
+        www = Path('./www').resolve()
+        index = Path('index.html')
+        uri = www / uri.resolve().relative_to('/')
+        if not uri.exists():
+            # If the uri does not exist
+            return '404 Not Found\r\n'
+        elif not uri.is_dir():
+            # If the uri exists and is not a directory
+            return '200 OK\r\n\r\n' + uri.read_text() + ('\r\n' * 2)
+        elif self.uri[-1] != b'/':
+            # If the uri is an existing directory, but does not end with '/'
+            return f'301 Moved\r\nLocation: http://{self.server_address[0]}:{self.server_address[1]}{self.uri}/\r\n'
+        elif not (uri / index).exists():
+            # If the uri is an existing directory, but does not have a file
+            # called index.html
+            return '404 Not Found\r\n'
+        else:
+            # If the uri is an existing directory and has index.html inside it.
+            return '200 OK\r\n\r\n' + (uri / index).read_text() + ('\r\n' * 2)
+
         # XXX: Question: what exactly is desired when '/' is requested, the
         # index.html page or a list of files in the directory? Similarly, what
         # if a directory is requested by the client?
@@ -104,96 +142,39 @@ class MyWebServer(socketserver.BaseRequestHandler):
 
         # XXX: Questions: What does "Must use 301 to correct paths such as 
         # http://127.0.0.1:8080/deep to http://127.0.0.1:8080/deep/ (path 
-        # ending)" mean?
+        # ending)" mean? Does it mean that .../deep/ will give us a 200, but a
+        # .../deep (without the ending /) must redirect us to the .../deep/
+        # version?
         # Do i give 405 for OPTIONS, CONNECT, PATCH, etc as well?
         # What does this mean: "The webserver can serve CSS properly so that the
         # front page has an orange h1 header." Do I need to do anything aside
         # from sending the raw text of the css file in my http response?
 
-        os.chdir('./www')
-        root = os.getcwd()      # So we can change back once we're done... maybe
-        # Split the uri into a list such that deeper directories have higher
-        # indices in the list, then remove all b'' characters from the result.
-        requested_thing = self.uri.split(b'/')
-        for null in [thing for thing in requested_thing if thing == b'']:
-            requested_thing.remove(null)
-        requested_thing.reverse()   # So we can use pop conveniently
 
-        while len(requested_thing) > 1:
-            next_dir = requested_thing.pop().decode()
-            if next_dir in os.listdir():
-                # chdir to the requested dir and repeat
-                # Use the len(requested_thing) to determine if it's a file or directory the user wants
-                # TODO try:
-                os.chdir('./' + next_dir)
-                # except filenotfound or whatever as e:
-                    # 404
-                pass
-            else:
-                # 404 Not Found Mate
-                pass
-        
-        if len(requested_thing) == 1:
-            thing = requested_thing.pop().decode()
-            if thing in os.listdir():
-                # 200 OK, send them the thing, might need to qcheck if it's a
-                # directory tho.
-                pass
-            else:
-                # 404
-                pass
-        elif 'index.html' in os.listdir():
-            # 200 OK, send them the thing
-            # for now, assuming '/' means they want index.html
-            pass
-        
-        os.chdir(root)      # reset cwd.
-
-
-    def post(self):
-        # 405 Method Not Allowed
-        pass
-
-    def head(self):
-        """
-        From https://www.rfc-editor.org/rfc/rfc2616#section-9.4
-        The HEAD method is identical to GET except that the server MUST NOT
-        return a message-body in the response. The metainformation contained
-        in the HTTP headers in response to a HEAD request SHOULD be identical
-        to the information sent in response to a GET request. This method can
-        be used for obtaining metainformation about the entity implied by the
-        request without transferring the entity-body itself. This method is
-        often used for testing hypertext links for validity, accessibility,
-        and recent modification.
-        """
-        # 200 OK
-        # 404 ?
-        # 301 (for deep) ?
-        pass
-
-    def put(self):
-        # 405
-        pass
-
-    def delete(self):
-        # 405
-        pass
-
-    def patch(self):
-        # 405 or 501 (Not Implemented)
-        pass
-
-    def options(self):
-        # 405 or 501 (Not Implemented)
-        pass
-
-    def trace(self):
-        # 405 or 501 (Not Implemented)
-        pass
-
-    def connect(self):
-        # 405 or 501 (Not Implemented)
-        pass
+    # def post(self):
+    #     # 405 Method Not Allowed
+    #     pass
+    # def head(self):
+    #     # 405
+    #     pass
+    # def put(self):
+    #     # 405
+    #     pass
+    # def delete(self):
+    #     # 405
+    #     pass
+    # def patch(self):
+    #     # 405
+    #     pass
+    # def options(self):
+    #     # 405
+    #     pass
+    # def trace(self):
+    #     # 405
+    #     pass
+    # def connect(self):
+    #     # 405
+    #     pass
 
 
 if __name__ == "__main__":
