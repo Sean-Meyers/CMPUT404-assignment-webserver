@@ -59,14 +59,7 @@ class MyWebServer(socketserver.BaseRequestHandler):
         req_headers = req[1:]
         for i in range(len(req_headers)):
             req_headers[i] = req_headers[i].split()
-        try:
-            self.headers = dict(req_headers)
-        except ValueError as e:
-            print(e)
-            print(req_headers)
-            print('********************************************************')
-            print(req)
-            print('********************************************************')
+        self.headers = dict(req_headers)
 
 
     def invoke_method(self):
@@ -93,16 +86,6 @@ class MyWebServer(socketserver.BaseRequestHandler):
         else:
             return '405 Method Not Allowed\r\n'
 
-
-    # def status(code, reason):
-    #     pass
-    # def resp_header(accept_range='',
-    #                 age='',
-    #                 etag='',
-    #                 location='',pxy_auth='',retry='',server='',vary='',www_auth=''):
-
-
-    # TODO: Implement methods. Can start with sending back 501 Not Implementeds
     
     def get(self):
         """
@@ -114,41 +97,37 @@ class MyWebServer(socketserver.BaseRequestHandler):
         process, unless that text happens to be the output of the process.
         """
 
+        # Path stuff
         uri = Path(self.uri.decode())
         www = Path('./www').resolve()
         index = Path('index.html')
         uri = www / uri.resolve().relative_to('/')
+
+        # Status Line Strings
+        full_addr = f'''http://{self.server.server_address[0]}:{
+                                        self.server.server_address[1]}{
+                                                           self.uri.decode()}'''
+        code_404 = f'404 {full_addr} Not Found \r\n'
+        code_301 = f'301 Moved\r\nLocation: {full_addr}/\r\n'
+        code_200 = '200 OK\r\n\r\n{body}\r\n'
+
+        # Check if it exists and all that
         if not uri.exists():
             # If the uri does not exist
-            return '404 Not Found\r\n'
+            return code_404
         elif not uri.is_dir():
             # If the uri exists and is not a directory
-            return '200 OK\r\n\r\n' + uri.read_text() + ('\r\n' * 2)
-        elif self.uri[-1] != b'/':
+            return code_200.format(body=uri.read_text())
+        elif self.uri[-1:] != b'/':
             # If the uri is an existing directory, but does not end with '/'
-            return f'301 Moved\r\nLocation: http://{self.server_address[0]}:{self.server_address[1]}{self.uri}/\r\n'
+            return code_301
         elif not (uri / index).exists():
             # If the uri is an existing directory, but does not have a file
             # called index.html
-            return '404 Not Found\r\n'
+            return code_404
         else:
             # If the uri is an existing directory and has index.html inside it.
-            return '200 OK\r\n\r\n' + (uri / index).read_text() + ('\r\n' * 2)
-
-        # XXX: Question: what exactly is desired when '/' is requested, the
-        # index.html page or a list of files in the directory? Similarly, what
-        # if a directory is requested by the client?
-        # XXX: Answer: https://eclass.srv.ualberta.ca/mod/forum/discuss.php?d=2161561
-
-        # XXX: Questions: What does "Must use 301 to correct paths such as 
-        # http://127.0.0.1:8080/deep to http://127.0.0.1:8080/deep/ (path 
-        # ending)" mean? Does it mean that .../deep/ will give us a 200, but a
-        # .../deep (without the ending /) must redirect us to the .../deep/
-        # version?
-        # Do i give 405 for OPTIONS, CONNECT, PATCH, etc as well?
-        # What does this mean: "The webserver can serve CSS properly so that the
-        # front page has an orange h1 header." Do I need to do anything aside
-        # from sending the raw text of the css file in my http response?
+            return code_200.format(body=(uri / index).read_text())
 
 
     # def post(self):

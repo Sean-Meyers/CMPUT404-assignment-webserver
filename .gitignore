@@ -37,3 +37,6 @@ nosetests.xml
 
 # virtualenv
 venv
+
+# IDEs, Text Editors, etc
+.vscode
