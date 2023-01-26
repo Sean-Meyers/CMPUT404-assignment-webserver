@@ -55,10 +55,14 @@ class MyWebServer(socketserver.BaseRequestHandler):
         self.method, self.uri, self.version = status_line.split(None, 2)
         #except ValueError as e:
         #    raise SomeCustomException()
-        req_headers = req[1:]
-        for i in range(len(req_headers)):
-            req_headers[i] = req_headers[i].split()
-        self.headers = dict(req_headers)
+        # TODO: Fix dictionary problems of the below code if/when you need to
+        # care about the request headers. Note: one reason that it is failing is
+        # almost certainly because some headers have more than one value in the
+        # request, e.g. 'Accept-Encoding: gzip, deflate.':
+        # req_headers = req[1:]
+        # for i in range(len(req_headers)):
+        #     req_headers[i] = req_headers[i].split()
+        # self.headers = dict(req_headers)
 
 
     def invoke_method(self):
