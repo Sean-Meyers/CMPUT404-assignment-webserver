@@ -39,23 +39,22 @@ class MyWebServer(socketserver.BaseRequestHandler):
 
 
     def parse_request(self):
+        """Parse the request and save useful data to instance variables."""
+        # Parse the request into status_line, req_headers, and req_body
         req = self.data.splitlines()
-        req_line = req[0]
+        status_line = req[0]
         # Figure out where the headers end and the body begins, save the body,
-        # then remove it from the list.
+        # then remove it from req.
         if b'' in req:
             headers_end = req.index(b'')
             if headers_end+1 < len(req):
                 req_body = req[headers_end+1 : ]    # TODO make it self.req_body
             del req[headers_end:]
-        # TODO: if the split below fails, raise a BadRequestLineError or
-        # something. May need to look into request's HTTPError or something;
-        # it seems the tests might expect it. But be careful, do you really want
-        # your server to crash because of a bad request or something?
+        # TODO: Errorhandling in case the split below fails.
         #try:
-        self.method, self.uri, self.version = req_line.split(None, 2)
+        self.method, self.uri, self.version = status_line.split(None, 2)
         #except ValueError as e:
-        #    raise Exception()
+        #    raise SomeCustomException()
         req_headers = req[1:]
         for i in range(len(req_headers)):
             req_headers[i] = req_headers[i].split()
@@ -63,6 +62,7 @@ class MyWebServer(socketserver.BaseRequestHandler):
 
 
     def invoke_method(self):
+        """Call the the method specified by the request."""
         # TODO: Add checks for self.version, make sure it matches HTTP/1.1 or
         # whatever else we want to allow.
         if self.method == b'GET':
@@ -89,6 +89,10 @@ class MyWebServer(socketserver.BaseRequestHandler):
     
     def get(self):
         """
+        Securly return the requested content if it exists.
+
+        The return value is a partial HTTP response in string form.
+
         From https://www.rfc-editor.org/rfc/rfc2616#section-9.3
         The GET method means retrieve whatever information (in the form of an
         entity) is identified by the Request-URI. If the Request-URI refers
@@ -102,6 +106,9 @@ class MyWebServer(socketserver.BaseRequestHandler):
         www = Path('./www').resolve()
         index = Path('index.html')
         uri = www / uri.resolve().relative_to('/')
+        content_type = ('text/' + uri.suffix[1:]
+                                if uri.suffix.lower() in ['.css', '.html']
+                                                                     else False)
 
         # Status Line Strings
         full_addr = f'''http://{self.server.server_address[0]}:{
@@ -110,6 +117,7 @@ class MyWebServer(socketserver.BaseRequestHandler):
         code_404 = f'404 {full_addr} Not Found \r\n'
         code_301 = f'301 Moved\r\nLocation: {full_addr}/\r\n'
         code_200 = '200 OK\r\n\r\n{body}\r\n'
+        code_200_ct = '200 OK\r\nContent-Type: {content_type}\r\n\r\n{body}\r\n'
 
         # Check if it exists and all that
         if not uri.exists():
@@ -117,6 +125,10 @@ class MyWebServer(socketserver.BaseRequestHandler):
             return code_404
         elif not uri.is_dir():
             # If the uri exists and is not a directory
+            if content_type:
+                # If the content type is known by the server
+                return code_200_ct.format(body=uri.read_text(),
+                                                      content_type=content_type)
             return code_200.format(body=uri.read_text())
         elif self.uri[-1:] != b'/':
             # If the uri is an existing directory, but does not end with '/'
@@ -127,7 +139,8 @@ class MyWebServer(socketserver.BaseRequestHandler):
             return code_404
         else:
             # If the uri is an existing directory and has index.html inside it.
-            return code_200.format(body=(uri / index).read_text())
+            return code_200_ct.format(body=(uri / index).read_text(),
+                                                       content_type='text/html')
 
 
     # def post(self):
