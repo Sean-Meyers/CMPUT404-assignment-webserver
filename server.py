@@ -97,12 +97,13 @@ class MyWebServer(socketserver.BaseRequestHandler):
 
         The return value is a partial HTTP response in string form.
 
-        From https://www.rfc-editor.org/rfc/rfc2616#section-9.3
-        The GET method means retrieve whatever information (in the form of an
+        The following method description is by The Internet Society (1999) and
+        from https://www.rfc-editor.org/rfc/rfc2616#section-9.3 verbatim:
+        "The GET method means retrieve whatever information (in the form of an
         entity) is identified by the Request-URI. If the Request-URI refers
         to a data-producing process, it is the produced data which shall be
         returned as the entity in the response and not the source text of the
-        process, unless that text happens to be the output of the process.
+        process, unless that text happens to be the output of the process."
         """
 
         # Path stuff
