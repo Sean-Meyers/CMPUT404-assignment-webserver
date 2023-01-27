@@ -2,7 +2,7 @@
 import socketserver
 from pathlib import Path
 
-# Copyright 2013 Abram Hindle, Eddie Antonio Santos, Sean Meyers
+# Copyright 2023 Abram Hindle, Eddie Antonio Santos, Sean Meyers
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
