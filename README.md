@@ -12,6 +12,8 @@ Contributors / Licensing
 
 Generally everything is LICENSE'D under the Apache 2 license by Abram Hindle.
 
+deep.png and root.png are by Sean Meyers and are under the same license.
+
 server.py contains contributions from:
 
 * Abram Hindle
